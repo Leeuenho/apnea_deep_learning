@@ -1,0 +1,30 @@
+import wfdb
+from wfdb import processing
+import matplotlib.pyplot as plt
+import numpy as np
+from IPython.display import display
+
+import pandas as pd
+
+rri_by_min = pd.DataFrame()
+
+for i in range(1):    
+    start = annotation.sample[i]
+    end=annotation.sample[i+1]
+    record = wfdb.rdrecord('D:\\apnea-ecg-database-1.0.0 (1)\\apnea-ecg-database-1.0.0\\a01', channels = [0],sampfrom=start,sampto=end)
+    signal, fields = wfdb.rdsamp('D:\\apnea-ecg-database-1.0.0 (1)\\apnea-ecg-database-1.0.0\\a01', channels = [0],sampfrom=start,sampto=end)    
+    qrs = processing.XQRS(sig = signal[:,0], fs = fields['fs'])
+    qrs.detect()
+    qrs_p = qrs.qrs_inds 
+    rri_array=[]
+    for ii in range(len(qrs_p)-1):
+        q1=1000*(qrs_p[ii+1]-qrs_p[ii])/record.fs
+        rri_array.append(q1)
+    #coln=['xpos'+str(i)]
+    
+    rri_by_min.insert(0,'xpos'+str(i),rri_array)
+    
+    
+plt.plot( signal)
+plt.plot(qrs_p, signal[qrs_p], 'x')   
+plt.show()

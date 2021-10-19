@@ -65,3 +65,5 @@ for i in range(0,(len(test_name)-1)):
     
     result_data.insert(result_data.shape[1], test_name[i], [accuracy,Sensitivity,Precision,z_accuracy,z_Sensitivity,z_Precision])
 result = result_data.transpose()
+
+

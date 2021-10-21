@@ -58,7 +58,8 @@ print(grid_cv.best_params_)
 print(grid_cv.best_score_)
 
 
-
+######### max_deep = 91, min_samples_leaf = 1, min_samples_split=91 
+######### accuracy = 0.647
 
 
 

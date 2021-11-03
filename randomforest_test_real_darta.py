@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-Created on Mon Oct 25 02:20:51 2021
+Created on Tue Nov  2 19:51:42 2021
 
 @author: eunho
 """
+
 
 import numpy as np
 import wfdb
@@ -12,33 +13,45 @@ import pandas as pd
 import pyhrv
 import os
 import pyhrv.time_domain
-import sys
-sys.path.append('D:/한림대학교/연구실/')
-import wfdb_filteredData_random_forest as rf
+import joblib
+
+#모델 불러오기
+file_name = 'rf_model.pkl'
+model = joblib.load(file_name)
 
 
-fn_list = []
+#파일 경로 설정
 path = 'D:/한림대학교/연구실/수면환자 데이터_Non_Apnea//'
+file_path = os.listdir(path)
+
+#파일 이름 불러오기
+file_name = [file for file in file_path if file.endswith('.txt')]
+
+#환자 이름 저장
+p_name = []
+for i in file_name:
+    name, _, _ = i.partition('.')
+    p_name.append(name)
+    
+time = []
 Total_Xout = pd.DataFrame()
 del_i=[] # temporary index to have been skipped\
-    
-    
-file_path = os.listdir(path)
-file_list_py = [file for file in file_path if file.endswith('.txt')]
-file_name = []
-for i in file_list_py:
-    name, a, b = i.partition('-')
-    file_name.append(name)
-                
 
-for k in range(len(file_name)):
-    with open(path+file_list_py[k],'r') as f:
-        annotation= f.readlines() #한 줄씩 데이터 불러오기
-    annotation = [line.rstrip('\n') for line in annotation]
-    annotation = [int(i) for i in annotation]
+for k in range(5):
+    with open(path+file_name[k], 'r') as f: #data 한줄로 불러오기
+        rri = f.readlines() 
+    rri = [line.strip('\n') for line in rri]
+    rri = list(map(int, rri)) #정수형 리스트로 변경
+    
+    #시간 data 계산
+    p = np.array(rri)
+    x_int = np.cumsum(p)
+    time.append(x_int[-1])
+    
+    
     rri_by_min = pd.DataFrame()
-    N=1024
-    annotation_len = int(len(annotation)/60)
+    N = 1024
+    
     xmax_lists =[] # for FFT analysis
     col_lists=[]
     yout=[] # A or N results
@@ -51,12 +64,21 @@ for k in range(len(file_name)):
     pnn50 = []
     variance = []
     i_variance = []
-    
-    for i in range(annotation_len):   
-        start = i*60
-        end = start+60
+   
+
+    x_index = [0]
+    x_cum = 60000
+    for i in range(len(x_int)):
+        if (x_int[i] >= x_cum) :  
+            x_cum += 60000
+            x_index.append(i)
+        else : continue;
+        
+    start = 0
+    for i in range(len(x_index)-1) :
+        
         try: 
-            qrs_index = annotation[start:end]
+            qrs_index = rri[x_index[i] : x_index[i+1]]
         except:del_i.append(i); continue # skip when less than 1 min in the last data
         if len(qrs_index) < 35: del_i.append(i); continue # skip when less than 35 beats for cited period    
         rri_array=[]
@@ -85,8 +107,8 @@ for k in range(len(file_name)):
         xint=np.linspace(x_min,x_max,N,endpoint=False)
         yint=flinear(xint) ## linear interpolation output
         ywin=np.hanning(N)*yint ## applied to hanning window
-        rri_by_min.insert(rri_by_min.shape[1],str(file_name[k])+'xPos_'+str(start),ywin)
-        col_lists.append(str(file_name[k])+'xPos_'+str(start))
+        rri_by_min.insert(rri_by_min.shape[1],str(p_name[k])+'Pos_'+str(start),ywin, allow_duplicates = True)
+        col_lists.append(str(p_name[k])+'Pos_'+str(start))
         
         
         # time domain features
@@ -104,7 +126,7 @@ for k in range(len(file_name)):
         # end of time domain
         #yout.append(annotation.symbol[i]) # outut
         
-        
+        start += 60
     for j in range(1,len(i_mean),4):
         mean.append(i_mean[j])
     
@@ -172,16 +194,55 @@ for k in range(len(file_name)):
     x_train.to_csv(path+'tset_filteredData_result_'+file_name[k]+'.csv')
     
 
+ 
+import scipy.stats as sc
+
+file_path = os.listdir(path)
+
 test_file = [file for file in file_path if file.endswith('.csv')]    
 Xdata_out = []
 
 
+#### X data
 for i in test_file:
    x_test = pd.read_csv(path + i)
    x_test = x_test.drop(['Unnamed: 0'],axis=1)
-   pred = rf.model.predict(x_test)
+   pred_x = model.predict(x_test)
    ap=0; non=0
-   for k in range(len(pred)):
-       if pred[k]==1: ap +=1;
-       if pred[k]==0: non +=1;
+   
+   for k in range(len(pred_x)):
+       if pred_x[k]==1: ap +=1;
+       if pred_x[k]==0: non +=1;
    Xdata_out.append(np.round(ap/(non+1)*100,1))
+   
+Zdata_out = []
+#### Z-score data
+for i in test_file:
+   x_test = pd.read_csv(path + i)
+   x_test = x_test.drop(['Unnamed: 0'],axis=1)
+   z_test = sc.zscore(x_test.T)
+   z_test = z_test.T
+   pred_z = model.predict(z_test)
+   ap=0; non=0
+   for k in range(len(pred_z)):
+       if pred_z[k]==1: ap +=1;
+       if pred_z[k]==0: non +=1;
+   Zdata_out.append(np.round(ap/(non+1)*100,1))
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
